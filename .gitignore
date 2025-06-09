@@ -1,24 +1,227 @@
-# Compiled class file
-*.class
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FamilyMart Receipt Generator v4 (with Editable Date)</title>
+    <!-- Tailwind CSS untuk layouting -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font dot-matrix dari Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    <!-- Library untuk mengubah HTML menjadi Gambar (PENTING UNTUK DOWNLOAD) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body {
+            background-color: #e5e7eb; /* Latar belakang abu-abu muda */
+        }
+        #receipt-container {
+            font-family: 'VT323', monospace; /* Font utama untuk struk */
+            background-color: white;
+            color: black;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            line-height: 1.2; /* Jarak antar baris yang rapat */
+        }
+        .two-columns {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 4px;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
 
-# Log file
-*.log
+    <div class="container mx-auto max-w-4xl">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800" style="font-family: sans-serif;">Receipt Generator v4</h1>
+            <p class="text-gray-600 mt-1" style="font-family: sans-serif;">Meniru struk belanja sesuai gambar Anda.</p>
+        </header>
 
-# BlueJ files
-*.ctxt
+        <!-- Form Input -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8 grid grid-cols-1 md:grid-cols-2 gap-6" style="font-family: sans-serif;">
+            <div>
+                <h3 class="font-bold text-lg mb-2">Info Header</h3>
+                <label class="block text-sm">Nama Toko</label>
+                <input type="text" id="storeName" class="w-full p-2 border rounded" value="FMI KELAPA GADING">
+                <label class="block text-sm mt-2">Kasir</label>
+                <input type="text" id="cashierName" class="w-full p-2 border rounded" value="Dian Puspita">
+                <!-- Kolom edit tanggal dan waktu BARU -->
+                <label class="block text-sm mt-2">Tanggal (dd/mm/yy)</label>
+                <input type="text" id="receiptDate" class="w-full p-2 border rounded" value="09/06/25">
+                <label class="block text-sm mt-2">Waktu (hh:mm)</label>
+                <input type="text" id="receiptTime" class="w-full p-2 border rounded" value="21:52">
+            </div>
+            <div>
+                <h3 class="font-bold text-lg mb-2">Info Pembayaran</h3>
+                <label class="block text-sm">Metode Pembayaran</label>
+                <input type="text" id="paymentMethod" class="w-full p-2 border rounded" value="SHOPEEPAY">
+                <label class="block text-sm mt-2">ID Transaksi (Opsional)</label>
+                <input type="text" id="paymentId" class="w-full p-2 border rounded" value="9KBJPRAXLBB">
+            </div>
+            <div class="md:col-span-2">
+                 <h3 class="font-bold text-lg mb-2">Item Belanja</h3>
+                 <div id="items-container" class="space-y-2">
+                    <!-- Item akan ditambahkan di sini oleh JS -->
+                 </div>
+                 <button id="addItemBtn" class="mt-2 text-sm bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded">
+                    + Tambah Item
+                 </button>
+            </div>
+            <div class="md:col-span-2 text-center">
+                 <button id="generateBtn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-md hover:bg-green-700">
+                    GENERATE RECEIPT
+                </button>
+                <!-- Tombol Download Baru -->
+                <button id="downloadBtn" class="w-full mt-2 bg-orange-500 text-white font-bold py-3 px-4 rounded-md hover:bg-orange-600">
+                    DOWNLOAD RECEIPT
+                </button>
+            </div>
+        </div>
 
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
+        <!-- Output Struk -->
+        <div class="flex justify-center p-2">
+            <div id="receipt-container" class="w-full max-w-xs p-4 text-2xl">
+                <!-- Konten struk akan digenerate di sini -->
+            </div>
+        </div>
+    </div>
 
-# Package Files #
-*.jar
-*.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
+    <script>
+        const storeNameInput = document.getElementById('storeName');
+        const cashierNameInput = document.getElementById('cashierName');
+        const paymentMethodInput = document.getElementById('paymentMethod');
+        const paymentIdInput = document.getElementById('paymentId');
+        const itemsContainer = document.getElementById('items-container');
+        const addItemBtn = document.getElementById('addItemBtn');
+        const generateBtn = document.getElementById('generateBtn');
+        const downloadBtn = document.getElementById('downloadBtn'); // Tombol download
+        const receiptContainer = document.getElementById('receipt-container');
+        // Input baru untuk tanggal dan waktu
+        const receiptDateInput = document.getElementById('receiptDate');
+        const receiptTimeInput = document.getElementById('receiptTime');
+        
+        let itemCount = 0;
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
-hs_err_pid*
-replay_pid*
+        function createItemInput(itemNum) {
+            const div = document.createElement('div');
+            div.classList.add('grid', 'grid-cols-12', 'gap-2', 'items-center');
+            div.innerHTML = `
+                <input type="text" placeholder="Nama Item ${itemNum}" class="item-name col-span-5 p-1 border rounded" value="Coca Cola Zero 390ml">
+                <input type="number" placeholder="Qty" class="item-qty col-span-2 p-1 border rounded" value="4">
+                <input type="number" placeholder="Harga Satuan" class="item-price col-span-4 p-1 border rounded" value="6300">
+                <button class="remove-item-btn col-span-1 text-red-500 hover:text-red-700">X</button>
+            `;
+            itemsContainer.appendChild(div);
+            div.querySelector('.remove-item-btn').addEventListener('click', () => {
+                div.remove();
+            });
+        }
+
+        addItemBtn.addEventListener('click', () => {
+            itemCount++;
+            createItemInput(itemCount);
+        });
+
+        function generateReceipt() {
+            const storeName = storeNameInput.value.toUpperCase();
+            const cashierName = cashierNameInput.value;
+            const paymentMethod = paymentMethodInput.value.toUpperCase();
+            const paymentId = paymentIdInput.value.toUpperCase();
+            
+            // Menggunakan nilai dari input tanggal dan waktu, bukan generate otomatis
+            const date = receiptDateInput.value;
+            const time = receiptTimeInput.value;
+            
+            const rctNo = `56554${Math.floor(100000000 + Math.random() * 900000000)}`;
+
+            let itemsHTML = '';
+            let total = 0;
+            let totalItems = 0;
+            const itemInputs = itemsContainer.querySelectorAll('.grid');
+            
+            itemInputs.forEach(item => {
+                const name = item.querySelector('.item-name').value;
+                const qty = parseInt(item.querySelector('.item-qty').value) || 0;
+                const price = parseInt(item.querySelector('.item-price').value) || 0;
+                const subtotal = qty * price;
+                total += subtotal;
+                totalItems += qty;
+
+                itemsHTML += `
+                    <div>${name}</div>
+                    <div class="two-columns">
+                        <span>${price.toLocaleString('id-ID')} X ${qty}</span>
+                        <span>${subtotal.toLocaleString('id-ID')}</span>
+                    </div>
+                `;
+            });
+            
+            const dpp = Math.round(total / 1.11);
+            const ppp = total - dpp;
+
+            receiptContainer.innerHTML = `
+                <div class="text-center font-bold text-3xl mb-4">FamilyMart</div>
+                <div class="two-columns"><span>STORE</span> <span>: ${storeName}</span></div>
+                <div class="two-columns"><span>${date} ${time}</span> <span>ICH 002</span></div>
+                <div class="two-columns"><span>RCT NO</span> <span>: ${rctNo}</span></div>
+                <div class="two-columns"><span>CASHIER</span> <span>: ${cashierName}</span></div>
+                <div class="text-center my-3">*SALES RECEIPT*</div>
+                ${itemsHTML}
+                <hr class="border-dashed border-black my-2">
+                <div class="two-columns font-bold"><span>TOTAL</span> <span>Rp ${total.toLocaleString('id-ID')}</span></div>
+                <hr class="border-dashed border-black my-2">
+                <div class="font-bold">${paymentMethod}</div>
+                ${paymentId ? `<div class="mb-2">${paymentId}</div>` : ''}
+                <div class="two-columns font-bold"><span></span> <span>${total.toLocaleString('id-ID')}</span></div>
+                <hr class="border-dashed border-black my-2">
+                <div class="two-columns"><span>TOTAL PAID</span> <span>Rp ${total.toLocaleString('id-ID')}</span></div>
+                <div class="two-columns"><span>CHANGES</span> <span>0</span></div>
+                <div class="two-columns"><span># ITEM SOLD</span> <span>${totalItems}</span></div>
+                <div class="two-columns"><span>DPP Nilai Lain</span> <span>Rp ${dpp.toLocaleString('id-ID')}</span></div>
+                <div class="two-columns"><span>PPP</span> <span>PPP 1,0</span></div>
+                <div class="text-center my-3">
+                    Harga sudah termasuk pajak<br>
+                    PT Fajar Mitra Indah<br>
+                    WA Business: 0898-3862-8998<br>
+                    IG & TIKTOK: @FamilyMartID
+                </div>
+                <div class="flex justify-center mt-2">
+                    <svg width="80" height="80" viewBox="0 0 25 25" class="p-1 bg-white"><path d="M0 0h7v7H0zm8 0h7v7H8zm8 0h7v7h-7zM2 2h3v3H2zm8 0h3v3h-3zm8 0h3v3h-3zM0 8h7v7H0zm8 0h7v7H8zm8 0h7v7h-7zM2 10h3v3H2zm8 0h3v3h-3zm8 0h3v3h-3zM0 16h7v7H0zm8 16h7v-7H8zm8 0h7v-7h-7zM2 18h3v3H2zm5 5h3v-3H7zm3 0h3v-3h-3zm-3-3h3v-3H7zm3-3h3v-3h-3zm0-3h3v-3H7zm3 0h3v-3h-3zM16 18h3v3h-3zm3 3h3v-3h-3zm-3-3h3v-3h-3zm3 0h3v-3h-3zm0 3h3v-3h-3zm0-3h3v-3h-3zm-3 0h3v-3h-3z"/></svg>
+                </div>
+            `;
+        }
+
+        // --- FUNGSI BARU UNTUK DOWNLOAD ---
+        downloadBtn.addEventListener('click', () => {
+            const receiptElement = document.getElementById('receipt-container');
+            // Menggunakan html2canvas untuk mengambil screenshot dari elemen struk
+            html2canvas(receiptElement, {
+                scale: 3, // Meningkatkan resolusi gambar agar tidak pecah
+                useCORS: true, // Diperlukan jika ada gambar eksternal
+                backgroundColor: '#ffffff'
+            }).then(canvas => {
+                // Membuat link download sementara
+                const link = document.createElement('a');
+                link.download = 'struk-familymart.png'; // Nama file saat di-download
+                link.href = canvas.toDataURL('image/png'); // Mengubah canvas menjadi URL gambar
+                link.click(); // Secara otomatis mengklik link untuk memulai download
+            });
+        });
+
+
+        // Inisialisasi
+        generateBtn.addEventListener('click', generateReceipt);
+        createItemInput(1); // Tambah 1 item di awal
+        generateReceipt(); // Generate struk awal saat halaman dimuat
+    </script>
+</body>
+</html>
+```
+
+**Perubahan yang Saya Lakukan:**
+
+1.  **Menambahkan Input Tanggal & Waktu:** Di bagian "Info Header" pada form, sekarang ada dua kolom baru untuk Anda mengisi tanggal dan waktu yang diinginkan. Saya sudah mengisinya dengan `09/06/25` dan `21:52` sesuai permintaan Anda.
+2.  **Menyesuaikan Logika JavaScript:** Kode JavaScript sekarang akan membaca nilai dari kolom input tanggal dan waktu yang baru, alih-alih membuat tanggal dan waktu secara otomatis.
+
+Sekarang Anda memiliki kontrol penuh atas tanggal dan waktu yang muncul di struk. Silakan dico
